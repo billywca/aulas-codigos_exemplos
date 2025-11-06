@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Exemplo – SessionStorage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      background-color: #f9f9f9;
+      line-height: 1.6;
+    }
+    h1 { color: #333; }
+    .info {
+      background: #eef;
+      border-left: 4px solid #55f;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 4px;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+      cursor: pointer;
+      background-color: #f2f2f2;
+    }
+    pre {
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>SessionStorage – Dados Temporários</h1>
+
+  <div class="info">
+    <p><strong>O que é:</strong> O <code>sessionStorage</code> guarda dados apenas durante a sessão da aba atual.<br>
+    Se a aba for fechada, tudo é apagado.</p>
+    <p>Abra <strong>duas abas</strong> deste mesmo arquivo para comparar o comportamento independente.</p>
+  </div>
+
+  <button id="contar">Contar Sessão</button>
+  <button id="mostrar">Mostrar Valor</button>
+  <button id="limpar">Limpar</button>
+
+  <h3>Resultado:</h3>
+  <pre id="saida">Sem dados ainda.</pre>
+
+  <script>
+    const CHAVE = "contadorSessao"; // nome da chave
+    const saida = document.getElementById("saida");
+
+    // Função auxiliar para exibir o valor atual
+    function mostrarValor() {
+      const valor = sessionStorage.getItem(CHAVE);
+      if (valor === null) {
+        saida.textContent = "Nenhum valor salvo nesta aba ainda.";
+      } else {
+        saida.textContent = `Valor atual da sessão: ${valor}`;
+      }
+    }
+
+    // Botão para incrementar o contador da sessão
+    document.getElementById("contar").onclick = () => {
+      // Pega o valor atual ou começa em 0
+      let v = Number(sessionStorage.getItem(CHAVE) || 0);
+      v++; // incrementa
+      sessionStorage.setItem(CHAVE, v); // grava novamente
+      mostrarValor(); // exibe na tela
+    };
+
+    // Botão para mostrar o valor salvo
+    document.getElementById("mostrar").onclick = mostrarValor;
+
+    // Botão para limpar a sessão
+    document.getElementById("limpar").onclick = () => {
+      sessionStorage.removeItem(CHAVE);
+      saida.textContent = "Sessão limpa!";
+    };
+
+    // Mostra o valor ao abrir a página
+    mostrarValor();
+  </script>
+</body>
+</html>

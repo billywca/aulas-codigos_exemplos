@@ -1,0 +1,24 @@
+
+<!DOCTYPE html>
+f<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Exemplo Transition</title>
+  
+  <style>
+    .box {
+      width: 150px; height: 150px; /* define a largura e a altura fixas da caixa */
+      background: crimson; /* define a cor de fundo inicial da caixa como crimson (vermelho) */
+      transition: background 0.8s ease; /*diz ao navegador para animar a mudança na propriedade background ao longo de 0.8 s
+                                          usando a curva de aceleração ease (começa rapído e desacelara no fim) */
+    }
+    .box:hover { /* mudança de estado - qunado passa o mouse */
+      background: darkblue; /* muda a cor pra azul */
+    }
+  </style>
+</head>
+<body>
+<div class="box"></div>
+</body>
+</html>
+

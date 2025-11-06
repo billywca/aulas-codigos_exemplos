@@ -1,0 +1,27 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Exemplo Transition</title>
+  
+  <style>
+    @keyframes bounce {
+        0%   { transform: translateY(0); }
+        50%  { transform: translateY(-80px); }
+        100% { transform: translateY(0); }
+    }
+    .ball {
+        width: 60px; height: 60px;
+        background: crimson;
+        border-radius: 50%;
+        margin: 50px auto;
+        animation: bounce 1s infinite;
+    }
+</style>
+
+</head>
+<body>
+    <div class="ball"></div>
+</body>
+</html>

@@ -1,0 +1,136 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f4f4f9;
+    color: #333;
+}
+
+h1, h2, h3 {
+    color: #0056b3;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.config, .simulacao-area {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.matrizes-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: space-around;
+}
+
+.matriz {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.matriz-tabela {
+    display: grid;
+    /* Configuração de grid feita via JS para flexibilidade */
+    gap: 5px;
+    padding: 5px;
+}
+
+.cell {
+    background-color: #eaf6ff;
+    border: 1px solid #cceeff;
+    padding: 8px;
+    font-weight: bold;
+    border-radius: 3px;
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+.header-cell {
+    background-color: #0056b3;
+    color: white;
+    font-weight: bold;
+}
+
+.processo-header {
+    background-color: #4a90e2;
+    color: white;
+}
+
+/* Estilos de Animação/Log */
+.log-e-controles {
+    display: flex;
+    margin-top: 20px;
+    gap: 20px;
+}
+
+.solicitacao-recurso {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.log-area {
+    flex: 2;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+#log-animacao {
+    min-height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    padding: 10px;
+    background-color: #fff;
+}
+
+/* Animações (Adicionar uma classe temporária via JS) */
+.flash-success {
+    background-color: #90ee90 !important; /* Verde Claro */
+    transform: scale(1.05);
+}
+
+.flash-fail {
+    background-color: #ffb6c1 !important; /* Vermelho Claro */
+    transform: scale(1.05);
+}
+
+.resource-transfer {
+    /* Efeito visual de transferência */
+    border: 3px solid orange;
+    box-shadow: 0 0 10px orange;
+}
+
+/* Estilo para Inputs e Botões */
+input[type="number"], select, button {
+    padding: 8px;
+    margin: 5px 0 10px 0;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}

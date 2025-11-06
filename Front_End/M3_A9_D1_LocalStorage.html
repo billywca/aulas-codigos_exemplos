@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Exemplo – LocalStorage com Objeto JSON</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 680px;
+      margin: 40px auto;
+      background: #fafafa;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #222;
+    }
+    button {
+      margin: 6px 4px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+      background-color: #f2f2f2;
+      cursor: pointer;
+    }
+    pre {
+      background: #eee;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>LocalStorage com Objeto (JSON)</h1>
+
+  <p>Este exemplo demonstra como salvar e ler objetos completos no LocalStorage usando JSON.</p>
+
+  <button id="salvar">Salvar Objeto</button>
+  <button id="ler">Ler Objeto</button>
+  <button id="apagar">Apagar</button>
+
+  <h3>Saída:</h3>
+  <pre id="saida">Nenhum dado ainda.</pre>
+
+  <script>
+    const CHAVE = "usuario"; // nome da chave
+    const saida = document.getElementById("saida");
+
+    // Evento para salvar o objeto
+    document.getElementById("salvar").onclick = () => {
+      const usuario = {
+        nome: "Ana",
+        curso: "Análise e Desenvolvimento de Sistemas",
+        semestre: 2,
+        data: new Date().toLocaleString()
+      };
+      // Converter objeto → texto JSON
+      localStorage.setItem(CHAVE, JSON.stringify(usuario));
+      saida.textContent = "✅ Objeto salvo no LocalStorage!";
+    };
+
+    // Evento para ler o objeto
+    document.getElementById("ler").onclick = () => {
+      try {
+        const dados = JSON.parse(localStorage.getItem(CHAVE) || "{}");
+        if (!dados.nome) {
+          saida.textContent = "⚠️ Nenhum dado encontrado!";
+          return;
+        }
+        saida.textContent = `👤 Nome: ${dados.nome}\n📘 Curso: ${dados.curso}\n📅 Atualizado: ${dados.data}`;
+      } catch (e) {
+        saida.textContent = "❌ Erro ao ler JSON: " + e;
+      }
+    };
+
+    // Evento para apagar o objeto
+    document.getElementById("apagar").onclick = () => {
+      localStorage.removeItem(CHAVE);
+      saida.textContent = "🗑️ Objeto removido do LocalStorage.";
+    };
+  </script>
+</body>
+</html>

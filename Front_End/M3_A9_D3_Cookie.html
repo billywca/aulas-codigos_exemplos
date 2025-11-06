@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Exemplo – Cookies em JavaScript</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      background-color: #fafafa;
+      line-height: 1.6;
+    }
+    h1 { color: #333; }
+    .info {
+      background: #eef;
+      border-left: 4px solid #55f;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 6px 4px;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+      background-color: #f2f2f2;
+      cursor: pointer;
+    }
+    pre {
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    small { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Cookies – Armazenamento e Expiração</h1>
+
+  <div class="info">
+    <p><strong>Cookies</strong> são pequenos pedaços de dados armazenados no navegador e enviados automaticamente ao servidor a cada requisição do mesmo domínio.</p>
+    <p>⚠️ Limite: cerca de <strong>4 KB</strong> por cookie e no máximo ~20 cookies por domínio.</p>
+  </div>
+
+  <h3>Criar ou atualizar cookie</h3>
+  <label>Nome:</label>
+  <input id="nome" type="text" placeholder="Ex.: usuario" />
+  <label>Valor:</label>
+  <input id="valor" type="text" placeholder="Ex.: Ana" />
+  <label>Expira em (dias):</label>
+  <input id="dias" type="number" value="7" min="1" />
+
+  <div>
+    <button id="criar">Criar / Atualizar Cookie</button>
+    <button id="mostrar">Mostrar Cookies</button>
+    <button id="apagar">Apagar Cookie</button>
+  </div>
+
+  <h3>Resultado:</h3>
+  <pre id="saida">Nenhum cookie ainda.</pre>
+
+  <script>
+    const saida = document.getElementById("saida");
+
+    // =====================================================
+    // Funções utilitárias para manipular cookies
+    // =====================================================
+
+    // Cria ou atualiza um cookie com nome, valor e dias de validade
+    function setCookie(nome, valor, dias) {
+      const data = new Date();
+      data.setTime(data.getTime() + (dias * 24 * 60 * 60 * 1000)); // milissegundos
+      const expires = "expires=" + data.toUTCString();
+      // path=/ garante que o cookie seja válido para todo o site
+      document.cookie = `${nome}=${valor}; ${expires}; path=/`;
+    }
+
+    // Lê o valor de um cookie específico pelo nome
+    function getCookie(nome) {
+      const nomeEq = nome + "=";
+      const cookies = document.cookie.split(";"); // divide todos os cookies
+      for (let c of cookies) {
+        c = c.trim();
+        if (c.indexOf(nomeEq) === 0) {
+          return c.substring(nomeEq.length, c.length);
+        }
+      }
+      return null;
+    }
+
+    // Apaga um cookie (define expiração no passado)
+    function deleteCookie(nome) {
+      document.cookie = `${nome}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    }
+
+    // Mostra todos os cookies do documento
+    function showAllCookies() {
+      if (!document.cookie) {
+        saida.textContent = "Nenhum cookie armazenado.";
+        return;
+      }
+      const lista = document.cookie.split(";").map(c => c.trim()).join("\n");
+      saida.textContent = "Cookies atuais:\n" + lista;
+    }
+
+    // =====================================================
+    // Eventos dos botões
+    // =====================================================
+    document.getElementById("criar").onclick = () => {
+      const nome = document.getElementById("nome").value.trim();
+      const valor = document.getElementById("valor").value.trim();
+      const dias = parseInt(document.getElementById("dias").value, 10);
+      if (!nome || !valor || isNaN(dias)) {
+        alert("Preencha nome, valor e dias!");
+        return;
+      }
+      setCookie(nome, valor, dias);
+      saida.textContent = `✅ Cookie criado: ${nome}=${valor} (expira em ${dias} dia${dias > 1 ? 's' : ''})`;
+    };
+
+    document.getElementById("mostrar").onclick = showAllCookies;
+
+    document.getElementById("apagar").onclick = () => {
+      const nome = document.getElementById("nome").value.trim();
+      if (!nome) {
+        alert("Informe o nome do cookie a apagar!");
+        return;
+      }
+      deleteCookie(nome);
+      saida.textContent = `🗑️ Cookie "${nome}" apagado!`;
+    };
+
+    // Exibir cookies ao abrir a página
+    showAllCookies();
+  </script>
+</body>
+</html>

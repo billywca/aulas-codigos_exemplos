@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aula Extra – Carrossel de Imagens (JS + DOM)</title>
+  <style>
+/*     
+      Objetivo didático:
+      - Exercitar DOM, eventos e manipulação de estilos via JS (conteúdo visto).
+      - Mostrar um "carrossel" simples com 5 imagens e botões Anterior/Próximo.
+      - Tudo em um arquivo só para facilitar o uso em sala.
+      OBS sobre comentários do CSS:
+      → Ao lado de propriedades/valores não vistos em aula, deixei "/ * NOVO: ... * /
+    */
+    :root {
+      --bg: #0f172a; /* azul-escuro */
+      --card: #111827; /* cinza-azulado */
+      --txt: #e5e7eb; /* cinza-claro */
+      --txt-dim: #9ca3af; /* cinza médio */
+      --brand: #22c55e; /* verde */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--txt);
+      background: radial-gradient(1200px 800px at 70% -10%, #1f2937, var(--bg)); /* NOVO: radial-gradient */
+      /* gradient não foi trabalhado? marquei como NOVO. */
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 32px auto;
+      padding: 16px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: clamp(22px, 4vw, 34px); /* NOVO: clamp() para fonte fluida */
+    }
+    header p { color: var(--txt-dim); margin: 0; }
+    /* Cartão que contém o carrossel */
+    .card {
+      background: var(--card);
+      border: 1px solid #1f2937;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25); /* NOVO: sombra mais elaborada */
+    }
+
+    /* Área visível do carrossel */
+    .carousel {
+      position: relative; /* já visto: posicionamento */
+      overflow: hidden; /* já visto: esconde o que passa das bordas */
+      border-radius: 12px;
+    }
+
+    /* Trilho que desliza as imagens */
+    .track {
+      display: flex; /* já visto: Flexbox */
+      transition: transform .5s ease; /* NOVO: transition + transform para animar o deslizamento */
+      will-change: transform; /* NOVO: dica de performance */
+    }
+
+    /* Cada slide ocupa 100% da largura visível */
+    .slide {
+      min-width: 100%;
+      user-select: none; /* NOVO: evitar seleção acidental de imagem */
+    }
+    .slide img {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9; /* NOVO: manter proporção sem distorção */
+      object-fit: cover; /* NOVO: cobre todo o box mantendo proporção */
+    }
+
+    /* Barra de controles (título, contagem, botões) */
+    .controls {
+      display: flex; /* já visto */
+      align-items: center; /* já visto */
+      justify-content: space-between; /* já visto */
+      gap: 12px; /* NOVO: gap em flex container */
+      padding: 10px 0 0 0;
+    }
+
+    .status {
+      font-size: 14px;
+      color: var(--txt-dim);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px; /* NOVO */
+    }
+
+    button {
+      appearance: none; /* NOVO: remove estilo nativo do SO */
+      border: 1px solid #2a3343;
+      background: #0b1220;
+      color: var(--txt);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      outline-offset: 2px; /* NOVO: desloca o contorno de foco para acessibilidade */
+    }
+    button:hover { background: #111a2b; }
+    button:active { transform: translateY(1px); /* NOVO: leve feedback no clique */ }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Pontinhos de navegação (indicadores) */
+    .dots {
+      display: flex;
+      gap: 6px; /* NOVO */
+      align-items: center;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 999px;
+      background: #243041;
+      transition: transform .2s ease; /* NOVO */
+    }
+    .dot.active {
+      background: var(--brand);
+      transform: scale(1.6); /* NOVO */
+    }
+    footer { margin-top: 18px; color: var(--txt-dim); font-size: 14px; }
+    footer code { background: #0b1220; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Carrossel com JavaScript (DOM + Eventos)</h1>
+      <p>Use os botões para navegar. Este exemplo utiliza apenas HTML, CSS e JavaScript puro.</p>
+    </header>
+    <section class="card" aria-label="Carrossel de imagens">
+      <!-- Região viva para leitores de tela. Caso não tenha sido visto: atributo aria-live notifica mudanças. -->
+      <p id="live" aria-live="polite" style="position:absolute; left:-9999px;">Slide 1 de 5</p> <!-- NOVO: aria-live -->
+      <div class="carousel">
+        <!-- Trilho que será movido via transform: translateX(...) no JS -->
+        <div class="track" id="track">
+          <!-- 5 slides/imagens. Substitua os src por imagens do seu projeto se quiser. -->
+          <div class="slide"><img src="https://picsum.photos/id/1015/1280/720" alt="Paisagem 1 – montanhas" loading="lazy"></div>
+          <div class="slide"><img src="https://picsum.photos/id/1016/1280/720" alt="Paisagem 2 – lago" loading="lazy"></div>
+          <div class="slide"><img src="https://picsum.photos/id/1025/1280/720" alt="Animal 3 – cachorro" loading="lazy"></div>
+          <div class="slide"><img src="https://picsum.photos/id/1043/1280/720" alt="Paisagem 4 – penhasco" loading="lazy"></div>
+          <div class="slide"><img src="https://picsum.photos/id/1056/1280/720" alt="Cidade 5 – prédios" loading="lazy"></div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="status"><strong id="count">1</strong>/<span id="total">5</span></div>
+        <div class="buttons">
+          <button id="prev" type="button" aria-label="Imagem anterior">⟨ Anterior</button>
+          <button id="next" type="button" aria-label="Próxima imagem">Próximo ⟩</button>
+        </div>
+      </div>
+      <div class="dots" id="dots" aria-hidden="true"></div>
+      <footer>
+        <p><strong>Dica ao professor:</strong> peça para os alunos explicarem o que cada trecho faz e depois proponha melhorias (ex.: autoplay, loop, teclado).</p>
+        <p>Conceitos usados: seleção de elementos (<code>querySelector</code>), eventos (<code>addEventListener</code>), atualização de estilos (<code>style.transform</code>) e manipulação de texto (<code>textContent</code>).</p>
+      </footer>
+    </section>
+  </div>
+  <script>
+    // ====== JS do carrossel ======
+    // Conteúdo alinhado ao que já vimos: variáveis, funções, arrays, DOM, eventos.
+    const track = document.getElementById('track');
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const btnPrev = document.getElementById('prev');
+    const btnNext = document.getElementById('next');
+    const live = document.getElementById('live');
+    const count = document.getElementById('count');
+    const total = document.getElementById('total');
+    const dotsWrap = document.getElementById('dots');
+    const TOTAL = slides.length;
+    total.textContent = TOTAL;
+
+    // Cria os pontinhos (indicadores) dinamicamente
+    const dots = slides.map((_, i) => {
+      const d = document.createElement('span');
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      dotsWrap.appendChild(d);
+      return d;
+    });
+
+    let index = 0; // slide atual
+    function atualizarUI() {
+      // Calcula a posição do trilho. Cada slide ocupa 100% da largura da área visível
+      const deslocamento = -index * 100; // em porcentagem
+      // Aplica a transformação para "deslizar" (efeito carrossel)
+      track.style.transform = `translateX(${deslocamento}%)`; // NOVO: template string
+      // Atualiza contador e aria-live
+      count.textContent = index + 1;
+      live.textContent = `Slide ${index + 1} de ${TOTAL}`;
+      // Ativa o pontinho correspondente
+      dots.forEach((d, i) => d.classList.toggle('active', i === index));
+      // Desabilita botões nas extremidades (comportamento sem loop)
+      btnPrev.disabled = index === 0;
+      btnNext.disabled = index === TOTAL - 1;
+    }
+
+    function proximo() {
+      if (index < TOTAL - 1) {
+        index++;
+        atualizarUI();
+      }
+    }
+    function anterior() {
+      if (index > 0) {
+        index--;
+        atualizarUI();
+      }
+    }
+
+    // Eventos dos botões
+    btnNext.addEventListener('click', proximo);
+    btnPrev.addEventListener('click', anterior);
+    // BÔNUS (opcional): navegação por teclado (setas esquerda/direita)
+    // Caso atalho de teclado não tenha sido visto, considere como extra.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') proximo();
+      if (e.key === 'ArrowLeft') anterior();
+    });
+    // Ajuste inicial da interface
+    atualizarUI();
+    // Observação didática:
+    // - Se quiser modo "loop" (ao chegar no fim, volta ao início), troque o comportamento de
+    //   proximo()/anterior() para usar módulo (%) e remova a lógica de "disabled" dos botões.
+  </script>
+</body>
+</html>

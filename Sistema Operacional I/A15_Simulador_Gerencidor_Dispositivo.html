@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Drivers - SO I</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeInDown 1s;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-3px);
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            min-height: 500px;
+        }
+
+        .section {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* Animações dos conceitos */
+        .concept-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+
+        .concept-card:hover {
+            transform: scale(1.02);
+        }
+
+        .concept-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        /* Arquitetura Animada */
+        .architecture {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .layer {
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.5s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .layer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.2);
+            transition: left 0.5s;
+        }
+
+        .layer:hover::before {
+            left: 100%;
+        }
+
+        .layer-app {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .layer-kernel {
+            background: #2196F3;
+            color: white;
+        }
+
+        .layer-driver {
+            background: #FF9800;
+            color: white;
+        }
+
+        .layer-hardware {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .arrow {
+            text-align: center;
+            font-size: 24px;
+            color: #667eea;
+            animation: bounce 1s infinite;
+        }
+
+        /* Simulador */
+        .simulator {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .device {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            border: 3px solid #ddd;
+            transition: all 0.3s;
+        }
+
+        .device:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .device.selected {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .device-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .driver-status {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border-left: 5px solid #2196F3;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-ok { background: #4CAF50; }
+        .status-loading { background: #FF9800; }
+        .status-error { background: #f44336; }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            animation: slideInLeft 0.3s;
+        }
+
+        /* Fluxo de Comunicação Animado */
+        .communication-flow {
+            position: relative;
+            height: 300px;
+            margin: 30px 0;
+        }
+
+        .flow-node {
+            position: absolute;
+            width: 120px;
+            height: 80px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .flow-app {
+            background: #4CAF50;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .flow-syscall {
+            background: #2196F3;
+            top: 120px;
+            left: 30%;
+        }
+
+        .flow-driver {
+            background: #FF9800;
+            top: 120px;
+            right: 30%;
+        }
+
+        .flow-hardware {
+            background: #9C27B0;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .data-packet {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #FFD700;
+            border-radius: 50%;
+            animation: movePacket 3s infinite;
+            box-shadow: 0 0 10px #FFD700;
+        }
+
+        @keyframes movePacket {
+            0% { top: 60px; left: 50%; opacity: 1; }
+            25% { top: 120px; left: 35%; opacity: 1; }
+            50% { top: 120px; left: 65%; opacity: 1; }
+            75% { top: 240px; left: 50%; opacity: 1; }
+            100% { top: 240px; left: 50%; opacity: 0; }
+        }
+
+        /* Animações */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Video Container */
+        .video-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .video-card {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+
+        .video-placeholder {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .video-placeholder:hover {
+            transform: scale(1.02);
+        }
+
+        .play-icon {
+            font-size: 72px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ Gerenciamento de Drivers</h1>
+            <p>Sistemas Operacionais I - Aula Interativa</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showSection('conceitos')">📚 Conceitos</button>
+            <button class="tab" onclick="showSection('arquitetura')">🏗️ Arquitetura</button>
+            <button class="tab" onclick="showSection('videos')">🎥 Vídeos</button>
+            <button class="tab" onclick="showSection('simulador')">🎮 Simulador</button>
+        </div>
+
+        <div class="content">
+            <!-- Seção Conceitos -->
+            <div id="conceitos" class="section active">
+                <h2>O que são Drivers?</h2>
+                <div class="concept-card">
+                    <h3>📌 Definição</h3>
+                    <p>Drivers são programas que permitem que o sistema operacional se comunique com dispositivos de hardware. Eles atuam como tradutores entre o SO e o hardware.</p>
+                </div>
+
+                <div class="concept-card">
+                    <h3>🎯 Funções Principais</h3>
+                    <ul style="list-style-position: inside; line-height: 2;">
+                        <li>Abstração do hardware</li>
+                        <li>Gerenciamento de requisições de I/O</li>
+                        <li>Controle de acesso aos dispositivos</li>
+                        <li>Tratamento de interrupções</li>
+                        <li>Buffer de dados</li>
+                    </ul>
+                </div>
+
+                <div class="concept-card">
+                    <h3>⚙️ Tipos de Drivers</h3>
+                    <ul style="list-style-position: inside; line-height: 2;">
+                        <li><strong>Character Drivers:</strong> Transferem dados caractere por caractere (teclado, mouse)</li>
+                        <li><strong>Block Drivers:</strong> Transferem blocos de dados (discos, SSDs)</li>
+                        <li><strong>Network Drivers:</strong> Gerenciam comunicação de rede</li>
+                        <li><strong>Pseudo Drivers:</strong> Não controlam hardware real (drivers virtuais)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Seção Arquitetura -->
+            <div id="arquitetura" class="section">
+                <h2>Arquitetura em Camadas</h2>
+                <div class="architecture">
+                    <div class="layer layer-app">
+                        Aplicação do Usuário
+                        <br><small>Requisição de I/O (ex: ler arquivo)</small>
+                    </div>
+                    <div class="arrow">⬇</div>
+                    <div class="layer layer-kernel">
+                        Kernel (System Calls)
+                        <br><small>Interface entre usuário e sistema</small>
+                    </div>
+                    <div class="arrow">⬇</div>
+                    <div class="layer layer-driver">
+                        Driver do Dispositivo
+                        <br><small>Traduz comandos para o hardware</small>
+                    </div>
+                    <div class="arrow">⬇</div>
+                    <div class="layer layer-hardware">
+                        Hardware (Dispositivo Físico)
+                        <br><small>Executa a operação física</small>
+                    </div>
+                </div>
+
+                <h2 style="margin-top: 40px;">Fluxo de Comunicação Animado</h2>
+                <div class="communication-flow">
+                    <div class="flow-node flow-app">Aplicação</div>
+                    <div class="flow-node flow-syscall">System Call</div>
+                    <div class="flow-node flow-driver">Driver</div>
+                    <div class="flow-node flow-hardware">Hardware</div>
+                    <div class="data-packet"></div>
+                </div>
+                <p style="text-align: center; color: #666;">
+                    <strong>🟡 Observe o fluxo de dados</strong> percorrendo as camadas do sistema
+                </p>
+            </div>
+
+            <!-- Seção Vídeos -->
+            <div id="videos" class="section">
+                <h2>Vídeos Educacionais</h2>
+                
+                <div class="video-card">
+                    <h3>🎬 Vídeo 1: Introdução aos Drivers</h3>
+                    <div>
+                        <iframe width="100%" height="400" src="https://www.youtube.com/embed/AMoLbfwhldA" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                </div>
+
+                <div class="video-card">
+                    <h3>🎬 Vídeo 2: Instalando um driver no Linux Mint</h3>
+                    <div>
+                        <iframe width="100%" height="400" src="https://www.youtube.com/embed/2U2CQ5i9ewU" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                </div>
+
+                <div class="video-card">    
+                    <h3>🎬 Vídeo 3: Como as CPUs interagem com tantos dispositivos diferentes </h3>
+                    <div>
+                        <iframe width="100%" height="400" src="https://www.youtube.com/embed/tadUeiNe5-g" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <!-- <div class="concept-card" style="margin-top: 30px;">
+                    <h3>💡 Como adicionar seus vídeos:</h3>
+                    <ol style="list-style-position: inside; line-height: 2;">
+                        <li>Acesse o YouTube e copie o link do vídeo desejado</li>
+                        <li>Clique em "Compartilhar" > "Incorporar"</li>
+                        <li>Copie o código iframe fornecido</li>
+                        <li>Substitua os divs "video-placeholder" pelo código iframe</li>
+                    </ol>
+                    <p style="margin-top: 15px;"><strong>Exemplo de código iframe:</strong></p>
+                    <code style="background: rgba(0,0,0,0.1); padding: 10px; display: block; border-radius: 5px; margin-top: 10px;">
+                        &lt;iframe width="100%" height="400" src="https://www.youtube.com/embed/VIDEO_ID" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;
+                    </code>
+                </div> -->
+            </div>
+
+            <!-- Seção Simulador -->
+            <div id="simulador" class="section">
+                <h2>🎮 Simulador de Gerenciamento de Drivers</h2>
+                <p>Selecione um dispositivo e simule as operações de driver!</p>
+
+                <div class="simulator">
+                    <h3>Dispositivos Disponíveis:</h3>
+                    <div class="device-grid" id="deviceGrid">
+                        <div class="device" onclick="selectDevice('mouse', '🖱️', 'character')">
+                            <div class="device-icon">🖱️</div>
+                            <div>Mouse</div>
+                        </div>
+                        <div class="device" onclick="selectDevice('keyboard', '⌨️', 'character')">
+                            <div class="device-icon">⌨️</div>
+                            <div>Teclado</div>
+                        </div>
+                        <div class="device" onclick="selectDevice('disk', '💾', 'block')">
+                            <div class="device-icon">💾</div>
+                            <div>Disco</div>
+                        </div>
+                        <div class="device" onclick="selectDevice('printer', '🖨️', 'character')">
+                            <div class="device-icon">🖨️</div>
+                            <div>Impressora</div>
+                        </div>
+                        <div class="device" onclick="selectDevice('network', '🌐', 'network')">
+                            <div class="device-icon">🌐</div>
+                            <div>Placa de Rede</div>
+                        </div>
+                        <div class="device" onclick="selectDevice('usb', '🔌', 'character')">
+                            <div class="device-icon">🔌</div>
+                            <div>USB</div>
+                        </div>
+                    </div>
+
+                    <div class="driver-status" id="driverStatus">
+                        <strong>Status do Driver:</strong>
+                        <div id="statusText">Nenhum dispositivo selecionado</div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="loadBtn" onclick="loadDriver()" disabled>📥 Carregar Driver</button>
+                        <button class="btn btn-secondary" id="initBtn" onclick="initDriver()" disabled>🚀 Inicializar</button>
+                        <button class="btn btn-secondary" id="readBtn" onclick="readDevice()" disabled>📖 Ler Dados</button>
+                        <button class="btn btn-secondary" id="writeBtn" onclick="writeDevice()" disabled>✍️ Escrever Dados</button>
+                        <button class="btn btn-danger" id="unloadBtn" onclick="unloadDriver()" disabled>📤 Descarregar Driver</button>
+                    </div>
+
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry">💻 Sistema pronto. Aguardando seleção de dispositivo...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedDevice = null;
+        let driverState = 'unloaded'; // unloaded, loaded, initialized
+
+        function showSection(sectionId) {
+            // Remove active de todas as tabs e sections
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+            
+            // Ativa a tab e section selecionadas
+            event.target.classList.add('active');
+            document.getElementById(sectionId).classList.add('active');
+        }
+
+        function selectDevice(name, icon, type) {
+            // Remove seleção anterior
+            document.querySelectorAll('.device').forEach(d => d.classList.remove('selected'));
+            
+            // Adiciona seleção no dispositivo clicado
+            event.currentTarget.classList.add('selected');
+            
+            selectedDevice = { name, icon, type };
+            driverState = 'unloaded';
+            
+            updateStatus(`Dispositivo selecionado: ${icon} ${name} (${type} driver)`);
+            addLog(`🔍 Dispositivo detectado: ${icon} ${name}`);
+            addLog(`📋 Tipo: ${type} driver`);
+            
+            // Habilita apenas o botão de carregar
+            document.getElementById('loadBtn').disabled = false;
+            document.getElementById('initBtn').disabled = true;
+            document.getElementById('readBtn').disabled = true;
+            document.getElementById('writeBtn').disabled = true;
+            document.getElementById('unloadBtn').disabled = true;
+        }
+
+        function loadDriver() {
+            if (!selectedDevice) return;
+            
+            addLog(`⏳ Carregando driver para ${selectedDevice.icon} ${selectedDevice.name}...`);
+            updateStatus(`<span class="status-indicator status-loading"></span>Carregando driver...`);
+            
+            setTimeout(() => {
+                driverState = 'loaded';
+                addLog(`✅ Driver carregado com sucesso!`);
+                addLog(`🔧 Módulo do kernel: ${selectedDevice.name}_driver.ko`);
+                updateStatus(`<span class="status-indicator status-ok"></span>Driver carregado`);
+                
+                document.getElementById('loadBtn').disabled = true;
+                document.getElementById('initBtn').disabled = false;
+                document.getElementById('unloadBtn').disabled = false;
+            }, 1500);
+        }
+
+        function initDriver() {
+            addLog(`⚙️ Inicializando driver ${selectedDevice.icon} ${selectedDevice.name}...`);
+            updateStatus(`<span class="status-indicator status-loading"></span>Inicializando...`);
+            
+            setTimeout(() => {
+                driverState = 'initialized';
+                addLog(`✅ Driver inicializado!`);
+                addLog(`🔗 Registrado no subsistema de I/O`);
+                addLog(`📍 Device node criado: /dev/${selectedDevice.name}0`);
+                updateStatus(`<span class="status-indicator status-ok"></span>Driver pronto para uso`);
+                
+                document.getElementById('initBtn').disabled = true;
+                document.getElementById('readBtn').disabled = false;
+                document.getElementById('writeBtn').disabled = false;
+            }, 1500);
+        }
+
+        function readDevice() {
+            if (driverState !== 'initialized') return;
+            
+            addLog(`📖 Lendo dados de ${selectedDevice.icon} ${selectedDevice.name}...`);
+            
+            setTimeout(() => {
+                const data = generateRandomData();
+                addLog(`✅ Leitura completa: ${data}`);
+                addLog(`📊 Bytes lidos: ${Math.floor(Math.random() * 1024) + 1}`);
+            }, 800);
+        }
+
+        function writeDevice() {
+            if (driverState !== 'initialized') return;
+            
+            const data = generateRandomData();
+            addLog(`✍️ Escrevendo dados em ${selectedDevice.icon} ${selectedDevice.name}...`);
+            addLog(`📝 Dados: ${data}`);
+            
+            setTimeout(() => {
+                addLog(`✅ Escrita completa!`);
+                addLog(`📊 Bytes escritos: ${Math.floor(Math.random() * 1024) + 1}`);
+            }, 800);
+        }
+
+        function unloadDriver() {
+            addLog(`📤 Descarregando driver ${selectedDevice.icon} ${selectedDevice.name}...`);
+            updateStatus(`<span class="status-indicator status-loading"></span>Descarregando...`);
+            
+            setTimeout(() => {
+                addLog(`🧹 Liberando recursos...`);
+                addLog(`✅ Driver descarregado com sucesso!`);
+                updateStatus(`Dispositivo desconectado`);
+                driverState = 'unloaded';
+                
+                document.querySelectorAll('.device').forEach(d => d.classList.remove('selected'));
+                selectedDevice = null;
+                
+                document.getElementById('loadBtn').disabled = true;
+                document.getElementById('initBtn').disabled = true;
+                document.getElementById('readBtn').disabled = true;
+                document.getElementById('writeBtn').disabled = true;
+                document.getElementById('unloadBtn').disabled = true;
+            }, 1500);
+        }
+
+        function updateStatus(text) {
+            document.getElementById('statusText').innerHTML = text;
+        }
+
+        function addLog(message) {
+            const logContainer = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function generateRandomData() {
+            const types = ['0x' + Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase(), 
+                          `"${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 100)}"`,
+                          Math.floor(Math.random() * 1000)];
+            return types[Math.floor(Math.random() * types.length)];
+        }
+
+        // Adiciona animação às camadas quando clicadas
+        document.querySelectorAll('.layer').forEach(layer => {
+            layer.addEventListener('click', function() {
+                this.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 300);
+            });
+        });
+    </script>
+</body>
+</html>

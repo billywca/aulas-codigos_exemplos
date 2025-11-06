@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulador de Sistema de Arquivos</title>
+<style>
+  :root{font-family:Arial,Helvetica,sans-serif; --accent:#0b79d0;}
+  body{margin:16px;background:#f6f8fb;color:#111}
+  h1{margin:0 0 8px}
+  .app{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+  .card{background:#fff;border-radius:8px;padding:12px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  label{display:block;margin:8px 0 4px;font-weight:600;font-size:13px}
+  input,select,button{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd}
+  button{cursor:pointer;background:var(--accent);color:#fff;border:none}
+  .small{padding:6px;font-size:13px}
+  .blocks{display:flex;flex-wrap:wrap;gap:6px;padding:8px}
+  .block{width:48px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#eee;font-size:12px;border:1px solid #ddd}
+  .block.free{background:#f5fff2;border:1px solid #b5e8b0}
+  .block.used{background:#fff3f3;border:1px solid #f0b2b2}
+  .file-row{display:flex;gap:8px;align-items:center;padding:6px;border-bottom:1px dashed #eee}
+  .muted{color:#666;font-size:13px}
+  pre{background:#0b1220;color:#d6f1ff;padding:8px;border-radius:6px;overflow:auto}
+  .log{height:160px;overflow:auto;background:#0f1720;color:#e6eef8;padding:8px;border-radius:6px}
+  .legend{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .legend span{display:inline-block;width:12px;height:12px;border-radius:3px}
+  .legend .free{background:#dff7d8}
+  .legend .used{background:#ffd9d9}
+  .grid-table{width:100%;border-collapse:collapse;margin-top:8px}
+  .grid-table th,.grid-table td{border:1px solid #eee;padding:6px;text-align:left;font-size:13px}
+  .flex{display:flex;gap:8px}
+  .permissions{display:flex;gap:6px;flex-wrap:wrap}
+  .perm-pill{padding:6px;border-radius:6px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:13px}
+  .os-select{display:flex;gap:6px}
+  footer{margin-top:12px;color:#444;font-size:13px}
+</style>
+</head>
+<body>
+  <h1>Simulador de Sistema de Arquivos — Blocos & Permissões</h1>
+  <div class="app">
+    <!-- painel esquerdo: controles -->
+    <div class="card">
+      <label>Nome do arquivo</label>
+      <input id="filename" placeholder="ex: relatorio.txt" />
+
+      <label>Tamanho (em blocos)</label>
+      <input id="size" type="number" min="1" max="10" value="3" />
+
+      <label>Tipo de organização</label>
+      <select id="allocType">
+        <option value="sequential">Sequencial</option>
+        <option value="direct">Direto (indexado por posição/hash simples)</option>
+        <option value="indexed">Indexado (índice de blocos)</option>
+      </select>
+
+      <label>Sistema alvo (segurança)</label>
+      <div class="os-select">
+        <select id="osType">
+          <option value="linux">Linux (owner/group/others + rwx)</option>
+          <option value="windows">Windows (ACL simplificada)</option>
+          <option value="macos">macOS (POSIX + ACL/sandbox simplificada)</option>
+        </select>
+      </div>
+
+      <label>Permissões iniciais</label>
+      <div id="permControls" class="permissions">
+        <!-- preenchido por JS -->
+      </div>
+
+      <div style="margin-top:10px" class="flex">
+        <button id="createBtn" class="small">Criar arquivo</button>
+        <button id="readBtn" class="small" style="background:#28a745">Ler arquivo</button>
+      </div>
+
+      <div style="margin-top:8px" class="flex">
+        <button id="searchBtn" class="small" style="background:#6c757d">Procurar</button>
+        <button id="deleteBtn" class="small" style="background:#c62828">Apagar</button>
+      </div>
+
+      <label style="margin-top:10px">Usuário atual (para checar permissões)</label>
+      <input id="currentUser" value="alice" />
+      <label>Grupo do usuário</label>
+      <input id="currentGroup" value="staff" />
+
+      <label style="margin-top:10px">Procurar por nome</label>
+      <input id="searchQuery" placeholder="parte do nome..." />
+
+      <hr style="margin:10px 0" />
+      <div class="muted">Legenda de blocos</div>
+      <div class="legend">
+        <div class="perm-pill"><span class="free"></span> Livre</div>
+        <div class="perm-pill"><span class="used"></span> Ocupado</div>
+      </div>
+
+      <footer>Simulação simplificada — ideal para demonstração em sala de aula.</footer>
+    </div>
+
+    <!-- painel direito: visualização -->
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>Mapa de blocos (64 blocos)</strong>
+            <div class="muted">Cada bloco pode armazenar 1 "unidade" de dado — aqui representado por um número de bloco</div>
+          </div>
+          <div class="muted" id="fsStats">Arquivos: 0 — Blocos livres: 64</div>
+        </div>
+        <div id="blocks" class="blocks" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <strong>Arquivos</strong>
+        <div id="fileList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <strong>Log de operações</strong>
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*
+  Simulador simplificado:
+  - bloco representa unidade física
+  - tabela de arquivos guarda: name, size, allocType, blocks[], indexBlock (se indexado), permissions
+  - permissions modela 3 OS: linux (rwx owner/group/others), windows (ACL entries user=>perms), macos (posix+rwx + acl)
+*/
+
+const TOTAL_BLOCKS = 64;
+const blocksEl = document.getElementById('blocks');
+const fileListEl = document.getElementById('fileList');
+const logEl = document.getElementById('log');
+const fsStats = document.getElementById('fsStats');
+
+let FS = {
+  blocks: new Array(TOTAL_BLOCKS).fill(null), // null => free, otherwise filename
+  files: [], // array de file objects
+};
+
+// util logs
+function log(msg){
+  const now = new Date().toLocaleTimeString();
+  logEl.innerHTML = `<div>[${now}] ${escapeHtml(msg)}</div>` + logEl.innerHTML;
+}
+
+// helper
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderBlocks(){
+  blocksEl.innerHTML = '';
+  let freeCount = 0;
+  for(let i=0;i<TOTAL_BLOCKS;i++){
+    const b = document.createElement('div');
+    b.className = 'block ' + (FS.blocks[i] ? 'used' : 'free');
+    b.textContent = i;
+    if(FS.blocks[i]) b.title = FS.blocks[i];
+    else { freeCount++; b.title = 'Livre'; }
+    blocksEl.appendChild(b);
+  }
+  fsStats.textContent = `Arquivos: ${FS.files.length} — Blocos livres: ${freeCount}`;
+}
+
+function renderFiles(){
+  fileListEl.innerHTML = '';
+  if(FS.files.length===0){ fileListEl.innerHTML = '<div class="muted">Sem arquivos</div>'; return;}
+  FS.files.forEach(f=>{
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const info = document.createElement('div');
+    info.style.flex='1';
+    info.innerHTML = `<strong>${escapeHtml(f.name)}</strong> <span class="muted">[${f.type}]</span><br>
+      <span class="muted">tamanho: ${f.size} blocos — blocos: ${f.blocks.join(', ') || '-'} </span><br>
+      <span class="muted">segurança: ${f.os} — ${permissionSummary(f)}</span>
+    `;
+    const btns = document.createElement('div');
+    btns.style.display='flex'; btns.style.gap='6px';
+    const r = document.createElement('button'); r.textContent='LER'; r.className='small'; r.onclick=()=>readFile(f.name);
+    const d = document.createElement('button'); d.textContent='DELETAR'; d.className='small'; d.style.background='#c62828'; d.onclick=()=>deleteFile(f.name);
+    btns.appendChild(r); btns.appendChild(d);
+    row.appendChild(info); row.appendChild(btns);
+    fileListEl.appendChild(row);
+  });
+}
+
+function permissionSummary(f){
+  if(f.os==='linux'){
+    return `owner=${f.perms.owner} group=${f.perms.group} ${f.perms.mode}`;
+  } else if(f.os==='windows'){
+    return `ACL: ${Object.keys(f.perms.acl||{}).length} entradas`;
+  } else {
+    return `posix:${f.perms.mode} acl:${Object.keys(f.perms.acl||{}).length}`;
+  }
+}
+
+// alocadores
+function allocateSequential(size){
+  // encontra sequência de size blocos livres
+  for(let i=0;i<=TOTAL_BLOCKS-size;i++){
+    let ok=true;
+    for(let j=0;j<size;j++){
+      if(FS.blocks[i+j]) { ok=false; break; }
+    }
+    if(ok) {
+      const arr=[];
+      for(let j=0;j<size;j++) arr.push(i+j);
+      return arr;
+    }
+  }
+  return null;
+}
+
+function allocateDirect(size, name){
+  // estratégia simplificada: usar hash -> posição inicial = hash % TOTAL_BLOCKS
+  const h = hashName(name);
+  let pos = h % TOTAL_BLOCKS;
+  const arr=[];
+  // probe linear até preencher
+  let attempts=0;
+  while(arr.length < size && attempts < TOTAL_BLOCKS*2){
+    if(!FS.blocks[pos]) arr.push(pos);
+    pos = (pos+1) % TOTAL_BLOCKS;
+    attempts++;
+  }
+  if(arr.length < size) return null;
+  return arr;
+}
+
+function allocateIndexed(size){
+  // precisamos de um bloco de índice + 'size' blocos (pode ser fragmentado)
+  // encontra um bloco livre para índice e depois qualquer blocos livres suficientes
+  const idx = FS.blocks.findIndex(b=>b===null);
+  if(idx===-1) return null;
+  const arr=[];
+  for(let i=0;i<TOTAL_BLOCKS && arr.length < size;i++){
+    if(FS.blocks[i]===null && i!==idx) arr.push(i);
+  }
+  if(arr.length < size) return null;
+  return { indexBlock: idx, blocks: arr };
+}
+
+// hash simples
+function hashName(s){
+  let h=0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i))|0;
+  return Math.abs(h);
+}
+
+// criar arquivo
+function createFile({name,size,type,os,perms}){
+  if(FS.files.some(f=>f.name===name)){ log(`Erro: já existe arquivo com o nome ${name}`); alert('Arquivo existe'); return; }
+  if(type==='sequential'){
+    const arr = allocateSequential(size);
+    if(!arr){ log('Erro: espaço contíguo insuficiente para armazenamento sequencial'); alert('Sem espaço contíguo'); return; }
+    arr.forEach(i=>FS.blocks[i]=name);
+    FS.files.push({name,size,blocks:arr,type,os,perms});
+    log(`Arquivo ${name} criado (sequencial) nos blocos: ${arr.join(', ')}`);
+  } else if(type==='direct'){
+    const arr = allocateDirect(size,name);
+    if(!arr){ log('Erro: espaço insuficiente para armazenamento direto'); alert('Sem espaço suficiente'); return; }
+    arr.forEach(i=>FS.blocks[i]=name);
+    FS.files.push({name,size,blocks:arr,type,os,perms});
+    log(`Arquivo ${name} criado (direto) nos blocos: ${arr.join(', ')}`);
+  } else if(type==='indexed'){
+    const res = allocateIndexed(size);
+    if(!res){ log('Erro: espaço insuficiente para armazenamento indexado'); alert('Sem espaço suficiente'); return; }
+    FS.blocks[res.indexBlock]=name + ' [idx]';
+    res.blocks.forEach(i=>FS.blocks[i]=name);
+    FS.files.push({name,size,blocks:res.blocks,indexBlock:res.indexBlock,type,os,perms});
+    log(`Arquivo ${name} criado (indexado) — índice no bloco ${res.indexBlock} e blocos: ${res.blocks.join(', ')}`);
+  }
+  renderBlocks();
+  renderFiles();
+}
+
+// ler arquivo (checa permissões)
+function canReadFile(f, user, group){
+  if(f.os==='linux'){
+    if(f.perms.owner===user) return f.perms.mode.includes('r--') || f.perms.mode.includes('r');
+    if(f.perms.group===group) return f.perms.mode.includes('r') || f.perms.mode.includes('r-');
+    return f.perms.mode.substr(6,3).includes('r');
+  } else if(f.os==='windows'){
+    // windows acl: map of user->perms, group->perms
+    if((f.perms.acl && f.perms.acl[user] && f.perms.acl[user].includes('r')) ) return true;
+    if((f.perms.acl && f.perms.acl[group] && f.perms.acl[group].includes('r')) ) return true;
+    // fallback: owner read
+    return f.perms.owner===user;
+  } else { // macos: posix+acl
+    if(f.perms.owner===user) return f.perms.mode.includes('r');
+    if((f.perms.acl && f.perms.acl[user] && f.perms.acl[user].includes('r'))) return true;
+    return f.perms.mode.substr(6,3).includes('r');
+  }
+}
+
+function readFile(name){
+  const f = FS.files.find(x=>x.name===name);
+  if(!f) { log(`LER: arquivo ${name} não encontrado`); alert('Arquivo não encontrado'); return; }
+  const user = document.getElementById('currentUser').value;
+  const group = document.getElementById('currentGroup').value;
+  if(!canReadFile(f,user,group)){ log(`ACESSO NEGADO: ${user} não tem permissão de leitura para ${name}`); alert('Acesso negado (permissões)'); return; }
+  // simula leitura: exibe blocos e tipo de alocação
+  const content = `Arquivo: ${f.name}\nTipo: ${f.type}\nBlocos: ${f.blocks.join(', ')}${f.indexBlock?'\nBloco índice: '+f.indexBlock:''}\nTamanho: ${f.size} blocos\nSistema: ${f.os}\nPerms: ${JSON.stringify(f.perms)}`;
+  log(`LER: ${name} (ok)`);
+  alert(content);
+}
+
+// deletar arquivo (libera blocos) — checar permissão de owner (simplificado)
+function deleteFile(name){
+  const idx = FS.files.findIndex(x=>x.name===name);
+  if(idx===-1){ log(`APAGAR: ${name} não existe`); alert('Arquivo não existe'); return; }
+  const f = FS.files[idx];
+  const user = document.getElementById('currentUser').value;
+  // regra simples: owner ou usuário com ACL 'delete' (windows/mac) pode deletar
+  let allowed=false;
+  if(f.os==='linux') allowed = (f.perms.owner===user);
+  else {
+    if(f.perms.acl && f.perms.acl[user] && f.perms.acl[user].includes('d')) allowed=true;
+    if(f.perms.owner===user) allowed=true;
+  }
+  if(!allowed){ log(`APAGAR NEGADO: ${user} não pode apagar ${name}`); alert('Permissão negada para apagar'); return; }
+  // liberar blocos
+  if(f.type==='indexed'){
+    FS.blocks[f.indexBlock] = null;
+    f.blocks.forEach(b=>FS.blocks[b]=null);
+  } else {
+    f.blocks.forEach(b=>FS.blocks[b]=null);
+  }
+  FS.files.splice(idx,1);
+  log(`APAGADO: ${name} — blocos liberados`);
+  renderBlocks(); renderFiles();
+}
+
+// busca simples por nome (substring) — demonstra como procurar
+function searchFiles(q){
+  const res = FS.files.filter(f=>f.name.toLowerCase().includes(q.toLowerCase()));
+  log(`BUSCA: "${q}" -> ${res.length} resultado(s)`);
+  if(res.length===0) alert('Nenhum arquivo encontrado');
+  else {
+    alert('Resultados:\n' + res.map(r=>`${r.name} [${r.type}] — blocos: ${r.blocks.join(', ')}`).join('\n'));
+  }
+}
+
+// UI: criar controles de permissão dinâmicos
+const permControls = document.getElementById('permControls');
+const osType = document.getElementById('osType');
+
+function buildPermControls(){
+  permControls.innerHTML = '';
+  const os = osType.value;
+  if(os==='linux'){
+    // owner, group, mode (rwx for owner/group/others)
+    const owner = document.createElement('input'); owner.id='perm_owner'; owner.placeholder='owner'; owner.value='alice';
+    const group = document.createElement('input'); group.id='perm_group'; group.placeholder='group'; group.value='staff';
+    const mode = document.createElement('input'); mode.id='perm_mode'; mode.placeholder='rwxr-xr--'; mode.value='rwxr-xr--';
+    permControls.appendChild(owner); permControls.appendChild(group); permControls.appendChild(mode);
+  } else if(os==='windows'){
+    // provide a simple ACL builder: text area of entries user:perms (r/w/d)
+    const ta = document.createElement('input'); ta.id='perm_acl'; ta.placeholder='acl (ex: alice:rwx; bob:rx)'; ta.value='alice:rwx;bob:rx';
+    permControls.appendChild(ta);
+  } else {
+    // macos: posix mode + acl
+    const mode = document.createElement('input'); mode.id='perm_mode'; mode.placeholder='rwxr-xr--'; mode.value='rwxr-xr--';
+    const ta = document.createElement('input'); ta.id='perm_acl'; ta.placeholder='acl (ex: alice:rwx;com.apple:rw)'; ta.value='';
+    permControls.appendChild(mode); permControls.appendChild(ta);
+  }
+}
+
+osType.addEventListener('change', buildPermControls);
+buildPermControls();
+
+// parse perms from UI into object
+function gatherPerms(){
+  const os = osType.value;
+  if(os==='linux'){
+    return {
+      owner: document.getElementById('perm_owner').value||'alice',
+      group: document.getElementById('perm_group').value||'staff',
+      mode: document.getElementById('perm_mode').value||'rwxr-xr--'
+    };
+  } else if(os==='windows'){
+    const raw = document.getElementById('perm_acl').value||'';
+    const pairs = raw.split(';').map(s=>s.trim()).filter(Boolean);
+    const acl = {};
+    pairs.forEach(p=>{
+      const [u,per] = p.split(':').map(x=>x.trim());
+      if(u) acl[u]=per;
+    });
+    return {owner: Object.keys(acl)[0]||'alice', acl};
+  } else {
+    const mode = document.getElementById('perm_mode').value||'rwxr-xr--';
+    const raw = document.getElementById('perm_acl').value||'';
+    const pairs = raw.split(';').map(s=>s.trim()).filter(Boolean);
+    const acl={};
+    pairs.forEach(p=>{
+      const [u,per]=p.split(':').map(x=>x.trim()); if(u) acl[u]=per;
+    });
+    return {owner: Object.keys(acl)[0]||'alice', mode, acl};
+  }
+}
+
+// hooking UI buttons
+document.getElementById('createBtn').onclick = ()=>{
+  const name = document.getElementById('filename').value.trim();
+  if(!name){ alert('Forneça um nome'); return; }
+  const size = Math.max(1, Math.min(10, Number(document.getElementById('size').value||1)));
+  const type = document.getElementById('allocType').value;
+  const os = document.getElementById('osType').value;
+  const perms = gatherPerms();
+  createFile({name,size,type,os,perms});
+};
+
+document.getElementById('readBtn').onclick = ()=>{
+  const name = document.getElementById('filename').value.trim();
+  if(!name){ alert('Escreva nome do arquivo para ler'); return; }
+  readFile(name);
+};
+
+document.getElementById('deleteBtn').onclick = ()=>{
+  const name = document.getElementById('filename').value.trim();
+  if(!name){ alert('Escreva nome do arquivo para apagar'); return; }
+  deleteFile(name);
+};
+
+document.getElementById('searchBtn').onclick = ()=>{
+  const q = document.getElementById('searchQuery').value.trim();
+  if(!q){ alert('Digite termo de busca'); return; }
+  searchFiles(q);
+};
+
+// inicializa UI
+renderBlocks();
+renderFiles();
+log('Simulador iniciado — pronto para uso.');
+
+/* Extra: preenche com alguns exemplos para demonstração */
+(function seedDemo(){
+  createFile({name:'relatorio.txt', size:3, type:'sequential', os:'linux', perms:{owner:'alice', group:'staff', mode:'rw-r-----'}});
+  createFile({name:'foto1.jpg', size:2, type:'direct', os:'windows', perms:{owner:'bob', acl:{bob:'rw', alice:'r'}}});
+  createFile({name:'db.index', size:4, type:'indexed', os:'macos', perms:{owner:'system', mode:'rw-r--r--', acl:{}}});
+})();
+</script>
+</body>
+</html>

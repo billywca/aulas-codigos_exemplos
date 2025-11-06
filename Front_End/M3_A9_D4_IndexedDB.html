@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>IndexedDB – CRUD Completo de Tarefas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" /> 
+  <style>
+    /* ===== Estilos básicos (apenas para visualização clara em aula) ===== */
+    :root { --bg:#f7f7f7; --fg:#222; --muted:#666; --line:#ddd; }
+    body { font-family: Arial, sans-serif; background: var(--bg); color: var(--fg); margin: 32px auto; max-width: 900px; }
+    
+    h1, h2 { margin: 0 0 12px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    small { color: var(--muted); }
+    section { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 16px 0; }
+    label { display: block; margin: 6px 0 2px; font-weight: bold; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; box-sizing: border-box;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    button {
+      padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; background: #f2f2f2;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #fafafa; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    .hint { color: var(--muted); font-size: 0.9em; }
+    .danger { background:#ffecec; border-color:#ffcdcd; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>IndexedDB – CRUD Completo</h1>
+      <small>Store: <code>tarefas</code> | Índices: <code>titulo</code>, <code>status</code></small>
+    </div>
+    <small>Use DevTools → Application → IndexedDB para inspecionar</small>
+  </header>
+
+  <!-- ===== Formulário de Edição/Criação ===== -->
+  <section>
+    <h2>Cadastro / Edição de Tarefas</h2>
+    <p class="hint">Dica: deixe <strong>ID</strong> vazio para inserir. Preencha o ID de uma linha para atualizar.</p>
+    <div class="row">
+      <div>
+        <label for="id">ID (autoincremento)</label>
+        <input id="id" type="number" min="1" placeholder="(vazio para inserir)" />
+      </div>
+      <div>
+        <label for="titulo">Título</label>
+        <input id="titulo" type="text" placeholder="Ex.: Preparar slides de aula" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="status">Status</label>
+        <select id="status">
+          <option value="Pendente">Pendente</option>
+          <option value="Em Progresso">Em Progresso</option>
+          <option value="Concluída">Concluída</option>
+        </select>
+      </div>
+      <div>
+        <label for="descricao">Descrição</label>
+        <input id="descricao" type="text" placeholder="Texto livre / observações" />
+      </div>
+    </div>
+    <div class="actions">
+      <button id="salvar">Salvar/Atualizar</button>
+      <button id="limparForm">Limpar Formulário</button>
+    </div>
+  </section>
+
+  <!-- ===== Filtros de Consulta ===== -->
+  <section>
+    <h2>Consulta / Filtros</h2>
+    <div class="row">
+      <div>
+        <label for="filtroTitulo">Buscar por título (prefixo)</label>
+        <input id="filtroTitulo" type="text" placeholder="Ex.: Pre (encontra 'Preparar', 'Projeto' não)" />
+      </div>
+      <div>
+        <label for="filtroStatus">Filtrar por status</label>
+        <select id="filtroStatus">
+          <option value="">(Todos)</option>
+          <option value="Pendente">Pendente</option>
+          <option value="Em Progresso">Em Progresso</option>
+          <option value="Concluída">Concluída</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="listar">Listar Tudo</button>
+      <button id="buscarTitulo">Buscar por Título</button>
+      <button id="filtrarStatus">Filtrar por Status</button>
+      <button id="limparBD" class="danger">Limpar Banco (drop store)</button>
+    </div>
+  </section>
+
+  <!-- ===== Tabela de Resultados ===== -->
+  <section>
+    <h2>Resultados</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px;">ID</th>
+          <th>Título</th>
+          <th>Status</th>
+          <th>Descrição</th>
+          <th style="width:180px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+
+  <script>
+    // ============================================================
+    // IndexedDB – CRUD Completo com comentários linha a linha
+    // ============================================================
+
+    // ---- 1) Verificação de suporte ----
+    // Verifica se o navegador suporta a API IndexedDB
+    if (!('indexedDB' in window)) {
+      // Se não suportar, exibe um alerta ao usuário
+      alert('Seu navegador não suporta IndexedDB.');
+    }
+
+    // ---- 2) Configurações globais do DB ----
+    // Define o nome do banco de dados
+    const DB_NAME = 'TarefasDB';
+    // Define a versão do schema (usado para migrações)
+    const DB_VERSION = 1;
+    // Define o nome do object store (equivalente a uma "tabela")
+    const STORE = 'tarefas';
+    // Variável global que guardará a referência ao banco aberto
+    let db = null;
+
+    // ---- 3) Abrir / criar o banco ----
+    // Função que abre ou cria o banco de dados
+    // Retorna uma Promise para facilitar uso com async/await
+    function openDB () {
+      // Cria uma nova Promise
+      return new Promise((resolve, reject) => {
+        // Solicita abertura do banco com nome e versão especificados
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+        // Evento disparado quando a versão do DB é maior do que a instalada
+        // Usado para criar ou alterar stores e índices
+        req.onupgradeneeded = (ev) => {
+          // Obtém a referência ao banco de dados
+          const database = ev.target.result;
+
+          // Verifica se o object store já existe
+          if (!database.objectStoreNames.contains(STORE)) {
+            // Cria o object store com chave primária 'id' auto-incrementada
+            const store = database.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+            // Cria índice por título (não único) para permitir buscas por prefixo
+            store.createIndex('titulo', 'titulo', { unique: false });
+            // Cria índice por status (não único) para filtros por status
+            store.createIndex('status', 'status', { unique: false });
+          }
+        };
+
+        // Evento disparado quando a abertura é bem-sucedida
+        req.onsuccess = (ev) => {
+          // Guarda a referência global ao banco
+          db = ev.target.result;
+          // Resolve a Promise com o banco
+          resolve(db);
+        };
+
+        // Evento disparado em caso de erro na abertura
+        req.onerror = (ev) => {
+          // Loga o erro no console
+          console.error('Erro ao abrir o DB:', ev.target.error);
+          // Rejeita a Promise com o erro
+          reject(ev.target.error);
+        };
+      });
+    }
+
+    // ---- 4) Helper: executa uma transação e resolve quando concluir ----
+    // Função auxiliar para executar operações em transações
+    // storeName: nome do store, mode: 'readonly' ou 'readwrite', fn: função a executar
+    function withTx (storeName, mode, fn) {
+      // Retorna uma Promise
+      return new Promise((resolve, reject) => {
+        // Inicia uma transação no store especificado com o modo especificado
+        const tx = db.transaction(storeName, mode);
+        // Obtém a referência ao object store
+        const store = tx.objectStore(storeName);
+
+        // Executa a função do usuário passando o store e a transação
+        fn(store, tx);
+
+        // Evento disparado quando a transação é concluída com sucesso
+        tx.oncomplete = () => resolve(true);
+        // Evento disparado em caso de erro na transação
+        tx.onerror = (e) => reject(e.target.error);
+        // Evento disparado se a transação for abortada
+        tx.onabort = (e) => reject(e.target.error);
+      });
+    }
+
+    // ---- 5) CRUD básico ----
+    // 5.1) Inserir/atualizar (put: se tiver id, atualiza; se não, insere)
+    // Função assíncrona para inserir ou atualizar uma tarefa
+    async function upsertTarefa (tarefa) {
+      // Executa transação de escrita chamando put no store
+      await withTx(STORE, 'readwrite', (store) => { store.put(tarefa); });
+    }
+
+    // 5.2) Remover por id
+    // Função assíncrona para deletar uma tarefa pelo id
+    async function deleteTarefa (id) {
+      // Executa transação de escrita chamando delete no store
+      await withTx(STORE, 'readwrite', (store) => { store.delete(id); });
+    }
+
+    // 5.3) Listar todas (getAll)
+    // Função que retorna todas as tarefas do banco
+    function getAllTarefas () {
+      // Retorna uma Promise
+      return new Promise((resolve, reject) => {
+        // Inicia transação de leitura
+        const tx = db.transaction(STORE, 'readonly');
+        // Obtém referência ao store
+        const store = tx.objectStore(STORE);
+        // Solicita todos os registros do store
+        const req = store.getAll();
+        // Quando a requisição for bem-sucedida
+        req.onsuccess = () => resolve(req.result || []);
+        // Em caso de erro
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    // 5.4) Buscar por título (prefixo) usando o índice
+    // Função que busca tarefas cujo título começa com determinado prefixo
+    function searchByTituloPrefix (prefix) {
+      // Retorna uma Promise
+      return new Promise((resolve, reject) => {
+        // Inicia transação de leitura
+        const tx = db.transaction(STORE, 'readonly');
+        // Obtém referência ao store
+        const store = tx.objectStore(STORE);
+        // Obtém o índice 'titulo'
+        const idx = store.index('titulo');
+
+        // Cria um range para buscar strings que começam com o prefixo
+        // '\uffff' é o maior caractere Unicode, garantindo pegar tudo que começa com prefix
+        const range = IDBKeyRange.bound(prefix, prefix + '\uffff', false, false);
+        // Array para armazenar os resultados
+        const results = [];
+
+        // Abre um cursor no índice com o range especificado
+        idx.openCursor(range).onsuccess = (e) => {
+          // Obtém o cursor atual
+          const cursor = e.target.result;
+          // Se ainda há registros
+          if (cursor) {
+            // Adiciona o valor ao array de resultados
+            results.push(cursor.value);
+            // Move para o próximo registro
+            cursor.continue();
+          } else {
+            // Não há mais registros, resolve com os resultados
+            resolve(results);
+          }
+        };
+        // Em caso de erro na transação
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    // 5.5) Filtrar por status usando índice
+    // Função que filtra tarefas por status específico
+    function filterByStatus (status) {
+      // Retorna uma Promise
+      return new Promise((resolve, reject) => {
+        // Inicia transação de leitura
+        const tx = db.transaction(STORE, 'readonly');
+        // Obtém referência ao store
+        const store = tx.objectStore(STORE);
+        // Obtém o índice 'status'
+        const idx = store.index('status');
+        // Cria um range que busca exatamente o status fornecido
+        const range = IDBKeyRange.only(status);
+        // Array para armazenar os resultados
+        const results = [];
+
+        // Abre um cursor no índice com o range especificado
+        idx.openCursor(range).onsuccess = (e) => {
+          // Obtém o cursor atual
+          const cursor = e.target.result;
+          // Se ainda há registros
+          if (cursor) {
+            // Adiciona o valor ao array de resultados
+            results.push(cursor.value);
+            // Move para o próximo registro
+            cursor.continue();
+          } else {
+            // Não há mais registros, resolve com os resultados
+            resolve(results);
+          }
+        };
+        // Em caso de erro na transação
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    // ---- 6) Renderização da tabela ----
+    // Obtém referência ao tbody da tabela
+    const tbody = document.getElementById('tbody');
+
+    // Função que renderiza as linhas da tabela com as tarefas
+    function renderRows (tarefas) {
+      // Limpa todo o conteúdo do tbody
+      tbody.innerHTML = '';
+      // Se não há tarefas
+      if (!tarefas.length) {
+        // Cria uma linha vazia
+        const tr = document.createElement('tr');
+        // Adiciona mensagem informando que não há registros
+        tr.innerHTML = `<td colspan="5"><em>Nenhum registro encontrado.</em></td>`;
+        // Adiciona a linha ao tbody
+        tbody.appendChild(tr);
+        // Encerra a função
+        return;
+      }
+
+      // Para cada tarefa no array
+      for (const t of tarefas) {
+        // Cria um elemento tr (linha da tabela)
+        const tr = document.createElement('tr');
+        // Preenche o HTML da linha com os dados da tarefa
+        // Usa escapeHtml para prevenir injeção de código
+        tr.innerHTML = `
+          <td>${t.id ?? '-'}</td>
+          <td>${escapeHtml(t.titulo || '')}</td>
+          <td>${escapeHtml(t.status || '')}</td>
+          <td>${escapeHtml(t.descricao || '')}</td>
+          <td>
+            <button data-acao="editar" data-id="${t.id}">Editar</button>
+            <button data-acao="excluir" data-id="${t.id}">Excluir</button>
+          </td>
+        `;
+        // Adiciona a linha ao tbody
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Helper simples para evitar injeção HTML na renderização
+    // Função que escapa caracteres especiais HTML
+    function escapeHtml (s) {
+      // Converte para string e substitui caracteres perigosos
+      return String(s)
+        // Substitui & por &amp;
+        .replaceAll('&', '&amp;')
+        // Substitui < por &lt;
+        .replaceAll('<', '&lt;')
+        // Substitui > por &gt;
+        .replaceAll('>', '&gt;')
+        // Substitui " por &quot;
+        .replaceAll('"', '&quot;')
+        // Substitui ' por &#039;
+        .replaceAll("'", '&#039;');
+    }
+
+    // ---- 7) Ligações de UI (formulário + botões) ----
+    // Função auxiliar para querySelector mais concisa
+    const $ = (sel) => document.querySelector(sel);
+    // Obtém referência ao campo id
+    const inputId = $('#id');
+    // Obtém referência ao campo titulo
+    const inputTitulo = $('#titulo');
+    // Obtém referência ao campo status
+    const inputStatus = $('#status');
+    // Obtém referência ao campo descricao
+    const inputDesc = $('#descricao');
+
+    // Adiciona listener de click no botão salvar
+    $('#salvar').addEventListener('click', async () => {
+      // Converte o valor do input id para número
+      const id = Number(inputId.value);
+      // Obtém o título e remove espaços nas pontas
+      const titulo = inputTitulo.value.trim();
+      // Obtém o valor do status
+      const status = inputStatus.value;
+      // Obtém a descrição e remove espaços nas pontas
+      const descricao = inputDesc.value.trim();
+
+      // Valida se o título foi preenchido
+      if (!titulo) { alert('Informe um título.'); return; }
+
+      // Cria o objeto tarefa com os dados do formulário
+      const tarefa = { titulo, status, descricao };
+      // Se id é um número válido e maior que 0, inclui no objeto (para update)
+      if (!Number.isNaN(id) && id > 0) tarefa.id = id;
+
+      // Bloco try-catch para tratamento de erros
+      try {
+        // Chama função para salvar/atualizar a tarefa
+        await upsertTarefa(tarefa);
+        // Exibe mensagem de sucesso
+        alert('Registro salvo!');
+        // Recarrega a lista de tarefas
+        await listarTudo();
+        // Limpa o formulário
+        limparForm();
+      } catch (e) {
+        // Loga o erro no console
+        console.error(e);
+        // Exibe mensagem de erro ao usuário
+        alert('Erro ao salvar: ' + e);
+      }
+    });
+
+    // Adiciona listener no botão de limpar formulário
+    $('#limparForm').addEventListener('click', limparForm);
+    // Função que limpa todos os campos do formulário
+    function limparForm () {
+      // Limpa o campo id
+      inputId.value = '';
+      // Limpa o campo titulo
+      inputTitulo.value = '';
+      // Reseta o status para 'Pendente'
+      inputStatus.value = 'Pendente';
+      // Limpa o campo descrição
+      inputDesc.value = '';
+    }
+
+    // Listagens e buscas
+    // Função assíncrona que lista todas as tarefas
+    async function listarTudo () {
+      // Busca todas as tarefas do banco
+      const items = await getAllTarefas();
+      // Renderiza as tarefas na tabela
+      renderRows(items);
+    }
+    // Adiciona listener no botão listar
+    $('#listar').addEventListener('click', listarTudo);
+
+    // Adiciona listener no botão de buscar por título
+    $('#buscarTitulo').addEventListener('click', async () => {
+      // Obtém o prefixo digitado e remove espaços
+      const prefix = $('#filtroTitulo').value.trim();
+      // Valida se o prefixo foi informado
+      if (!prefix) { alert('Digite um prefixo para buscar.'); return; }
+      // Busca tarefas com o prefixo
+      const res = await searchByTituloPrefix(prefix);
+      // Renderiza os resultados
+      renderRows(res);
+    });
+
+    // Adiciona listener no botão de filtrar por status
+    $('#filtrarStatus').addEventListener('click', async () => {
+      // Obtém o status selecionado
+      const status = $('#filtroStatus').value;
+      // Valida se um status foi selecionado
+      if (!status) { alert('Selecione um status.'); return; }
+      // Filtra tarefas pelo status
+      const res = await filterByStatus(status);
+      // Renderiza os resultados
+      renderRows(res);
+    });
+
+    // Excluir/Editar via delegação de eventos da tabela
+    // Adiciona listener na tabela inteira (delegação de eventos)
+    tbody.addEventListener('click', async (ev) => {
+      // Busca o botão clicado
+      const btn = ev.target.closest('button');
+      // Se não foi clicado em um botão, sai da função
+      if (!btn) return;
+      // Obtém a ação do botão (editar ou excluir)
+      const acao = btn.dataset.acao;
+      // Obtém o id da tarefa e converte para número
+      const id = Number(btn.dataset.id);
+
+      // Se a ação é excluir
+      if (acao === 'excluir') {
+        // Confirma com o usuário antes de excluir
+        if (confirm('Excluir registro #' + id + '?')) {
+          // Deleta a tarefa do banco
+          await deleteTarefa(id);
+          // Recarrega a lista
+          await listarTudo();
+        }
+      } else if (acao === 'editar') {
+        // Se a ação é editar
+        // Obtém a linha (tr) pai do botão
+        const tr = btn.closest('tr');
+        // Preenche o campo id com o id da tarefa
+        inputId.value = id;
+        // Preenche o campo titulo com o conteúdo da segunda célula
+        inputTitulo.value = tr.children[1].textContent;
+        // Preenche o campo status com o conteúdo da terceira célula
+        inputStatus.value = tr.children[2].textContent;
+        // Preenche o campo descrição com o conteúdo da quarta célula
+        inputDesc.value = tr.children[3].textContent;
+        // Rola a página suavemente até o topo (onde está o formulário)
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    // Limpar BD (drop da store via upgrade de versão) – didático
+    // Observação: IndexedDB não tem "drop store" direto sem upgrade
+    // Adiciona listener no botão de limpar banco de dados
+    $('#limparBD').addEventListener('click', async () => {
+      // Confirma com o usuário antes de limpar
+      if (!confirm('Isto recriará a store, apagando todos os dados. Continuar?')) return;
+
+      // Fecha a conexão atual com o banco
+      db.close();
+      // Solicita a remoção completa do banco de dados
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      // Quando a remoção for bem-sucedida
+      req.onsuccess = async () => {
+        // Exibe mensagem informando que o banco foi removido
+        alert('Banco removido. Recriando...');
+        // Abre o banco novamente (recria a estrutura)
+        await openDB();
+        // Lista as tarefas (que estará vazio)
+        await listarTudo();
+      };
+      // Em caso de erro na remoção
+      req.onerror = (e) => alert('Erro ao remover DB: ' + e.target.error);
+    });
+
+    // ---- 8) Inicialização: abrir DB e listar ----
+    // IIFE (Immediately Invoked Function Expression) assíncrona para inicialização
+    (async function init() {
+      // Bloco try-catch para tratamento de erros
+      try {
+        // Abre ou cria o banco de dados
+        await openDB();
+        // Lista todas as tarefas existentes
+        await listarTudo();
+      } catch (e) {
+        // Em caso de erro, exibe mensagem ao usuário
+        alert('Falha ao iniciar o IndexedDB: ' + e);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MiniFS Visual — Simulador de Sistema de Arquivos</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121832; --muted:#97a3b6; --acc:#73d7ff; --ok:#39d98a; --warn:#ffcc00; --err:#ff6b6b;
+      --blk:#1a2246; --used:#4b6fff; --inode:#f97316; --dir:#22d3ee; --sel:#a78bfa;
+      --grid: 18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#e7eefc;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    h1,h2,h3{margin:0 0 .5rem 0}
+    p{margin:.25rem 0}
+    .wrap{max-width:1300px;margin:0 auto;padding:20px;display:grid;gap:14px;grid-template-columns:360px 1fr}
+    .card{background:var(--panel);border:1px solid #223057;border-radius:14px;padding:14px;box-shadow:0 6px 20px #0005}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{background:#1e2952;border:1px solid #2f3f77;color:#dbe7ff;padding:8px 12px;border-radius:10px;cursor:pointer}
+    .btn:hover{filter:brightness(1.1)}
+    .btn.ok{background:linear-gradient(180deg,#1f6b4d,#155e44);border-color:#18714f}
+    .btn.warn{background:#5b4a04;border-color:#8a6d0a}
+    .btn.err{background:#5c2020;border-color:#7a2b2b}
+    input,select{background:#0e1533;border:1px solid #2a3c6a;color:#e6efff;border-radius:10px;padding:8px}
+    label{font-size:.9rem;color:var(--muted)}
+    .hint{font-size:.85rem;color:var(--muted)}
+
+    /* Grid de blocos */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--grid),1fr));gap:4px;user-select:none}
+    .blk{width:var(--grid);height:var(--grid);background:var(--blk);border-radius:6px;border:1px solid #2a3766;position:relative}
+    .blk.used{background:var(--used)}
+    .blk.inode{background:var(--inode)}
+    .blk.dir{background:var(--dir)}
+    .blk.sel{outline:2px solid var(--sel)}
+    .blk small{position:absolute;inset:auto 0 0 0;font-size:.55rem;text-align:center;color:#cfe1ff88}
+
+    /* Tabelas */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px dashed #2b3a6a;padding:6px 8px;text-align:left;font-size:.92rem}
+    th{color:#a7b6d8;font-weight:600}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+
+    .log{height:150px;overflow:auto;background:#0c122b;border:1px solid #253a71;border-radius:10px;padding:8px;font-size:.88rem}
+    .tag{display:inline-block;padding:2px 6px;border-radius:6px;background:#1e2a54;color:#cfe1ff;border:1px solid #2f3f77}
+    .legend{display:flex;gap:8px;flex-wrap:wrap}
+    .legend .chip{display:flex;gap:6px;align-items:center}
+    .legend i{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid #2a3766}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Painel de Controle -->
+    <section class="card">
+      <h1>MiniFS Visual</h1>
+      <p class="hint">Simulador didático de sistema de arquivos com blocos, i-nodes e diretórios. Ideal para demonstrar alocação, fragmentação e metadados.</p>
+
+      <h3>1) Formatar disco</h3>
+      <div class="row">
+        <label>Blocos:</label>
+        <input id="inpBlocks" type="number" min="64" max="4096" step="16" value="256"/>
+        <label>Tam. do bloco (bytes):</label>
+        <select id="inpBSize">
+          <option>512</option><option selected>1024</option><option>2048</option><option>4096</option>
+        </select>
+        <button class="btn ok" id="btnMkfs">Inicializar</button>
+      </div>
+      <p class="hint">Reserva 5% de blocos para i-nodes e 1% para diretório raiz. Bitmap livre/ocupado é atualizado a cada operação.</p>
+
+      <h3 style="margin-top:10px">2) Operações</h3>
+      <div class="row" style="gap:12px">
+        <input id="fileName" placeholder="nome do arquivo" value="relatorio.txt"/>
+        <input id="fileSize" type="number" min="1" max="1024" placeholder="tamanho (KB)" value="16"/>
+        <button class="btn" id="btnCreate">Criar</button>
+        <button class="btn" id="btnAppend">Append +4KB</button>
+        <button class="btn warn" id="btnDelete">Deletar</button>
+        <button class="btn" id="btnDefrag">Desfragmentar</button>
+      </div>
+
+      <div class="legend" style="margin-top:10px">
+        <div class="chip"><i style="background:var(--blk)"></i><span>livre</span></div>
+        <div class="chip"><i style="background:var(--used)"></i><span>dados</span></div>
+        <div class="chip"><i style="background:var(--inode)"></i><span>i-node</span></div>
+        <div class="chip"><i style="background:var(--dir)"></i><span>diretório</span></div>
+      </div>
+
+      <h3 style="margin-top:12px">3) Log</h3>
+      <div id="log" class="log mono"></div>
+    </section>
+
+    <!-- Visualização do Disco e Metadados -->
+    <section class="card" style="display:grid;grid-template-columns:1.3fr .9fr;gap:12px">
+      <div>
+        <h3>Disco (bitmap de blocos)</h3>
+        <div id="grid" class="grid" style="grid-auto-rows:var(--grid)"></div>
+      </div>
+      <div style="display:grid;gap:12px;grid-template-rows:auto auto 1fr">
+        <div class="card" style="padding:10px">
+          <h3>i-nodes</h3>
+          <table id="inodeTable">
+            <thead><tr><th>id</th><th>nome</th><th>tamanho</th><th>blocos</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card" style="padding:10px">
+          <h3>Diretório / (raiz)</h3>
+          <table id="dirTable">
+            <thead><tr><th>nome</th><th>inode</th><th>tamanho</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Resumo</h3>
+          <p id="summary" class="mono"></p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+(function(){
+  // Utilidades
+  const logEl = document.getElementById('log');
+  const gridEl = document.getElementById('grid');
+  const inodeTbody = document.querySelector('#inodeTable tbody');
+  const dirTbody = document.querySelector('#dirTable tbody');
+  const summaryEl = document.getElementById('summary');
+
+  const rand = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+  const kb = x => x*1024;
+
+  function log(msg){
+    const t = new Date().toLocaleTimeString();
+    logEl.innerHTML = `[${t}] ${msg}<br>` + logEl.innerHTML;
+  }
+
+  // Modelos do FS
+  class Disk{
+    constructor(totalBlocks, blockSize){
+      this.total = totalBlocks;
+      this.bsize = blockSize;
+      this.bitmap = new Array(totalBlocks).fill(0); // 0 livre, 1 dados, 2 inode, 3 dir
+      this.blocks = new Array(totalBlocks).fill(null); // guarda metadados simples
+    }
+    setType(idx, type){ // 0 livre, 1 dados, 2 inode, 3 dir
+      this.bitmap[idx] = type;
+    }
+    firstFit(n){
+      // encontra n blocos livres não necessariamente contíguos
+      const found = [];
+      for(let i=0;i<this.total && found.length<n;i++) if(this.bitmap[i]===0) found.push(i);
+      return (found.length===n) ? found : null;
+    }
+    compact(){
+      // move blocos de dados para posições iniciais mantendo ordem por arquivo
+      const usedData = [];
+      for(let i=0;i<this.total;i++) if(this.bitmap[i]===1) usedData.push(i);
+      let write = this.reservedEnd; // após área reservada
+      for(const oldIdx of usedData){
+        if(write===oldIdx){ write++; continue; }
+        // swap conteúdo lógico
+        this.blocks[write] = this.blocks[oldIdx];
+        this.bitmap[write] = 1;
+        this.blocks[oldIdx] = null;
+        this.bitmap[oldIdx] = 0;
+        // atualiza ponteiros nos i-nodes
+        const inode = this.blocks[write]?.owner;
+        if(inode){
+          const pos = inode.blocks.indexOf(oldIdx);
+          if(pos>=0) inode.blocks[pos] = write;
+        }
+        write++;
+      }
+      log('Desfragmentação concluída.');
+    }
+  }
+
+  class Inode{
+    constructor(id, name, size){
+      this.id = id; this.name = name; this.size = size; // bytes
+      this.blocks = []; // índices de blocos de dados
+      this.ctime = Date.now(); this.mtime = Date.now();
+    }
+    get nBlocks(){ return Math.ceil(this.size / fs.disk.bsize); }
+  }
+
+  class FileSystem{
+    constructor(){ this.disk=null; this.inodes=[]; this.dir=[]; this.nextInode=1; }
+
+    mkfs(totalBlocks, bsize){
+      this.disk = new Disk(totalBlocks, bsize);
+      this.inodes = []; this.dir = []; this.nextInode=1;
+      // Reserva 5% para i-nodes, 1% para raiz
+      const iNodesArea = Math.max( Math.floor(totalBlocks*0.05), 8 );
+      const dirArea = Math.max( Math.floor(totalBlocks*0.01), 2 );
+      for(let i=0;i<iNodesArea;i++) this.disk.setType(i,2);
+      for(let i=iNodesArea;i<iNodesArea+dirArea;i++) this.disk.setType(i,3);
+      this.disk.reservedEnd = iNodesArea + dirArea;
+      this.render();
+      log(`mkfs: ${totalBlocks} blocos @ ${bsize} bytes. Reservado ${iNodesArea} para i-nodes e ${dirArea} para diretório.`);
+    }
+
+    create(name, sizeKB){
+      if(!this.disk) return;
+      if(this.dir.find(e=>e.name===name)) { log(`<span class='tag'>ERRO</span> arquivo já existe`); return; }
+      const size = kb(sizeKB);
+      const inode = new Inode(this.nextInode++, name, size);
+      const blocksNeeded = inode.nBlocks;
+      const alloc = this.disk.firstFit(blocksNeeded);
+      if(!alloc){ log(`<span class='tag'>ERRO</span> espaço insuficiente`); return; }
+      // faz a alocação
+      for(const b of alloc){
+        this.disk.setType(b,1);
+        this.disk.blocks[b] = { owner: inode };
+        inode.blocks.push(b);
+      }
+      this.inodes.push(inode);
+      this.dir.push({ name, inode: inode.id, size });
+      log(`create: '${name}' ${sizeKB}KB — blocos ${alloc.join(',')}`);
+      this.render();
+      // anima seleção
+      this.flashBlocks(alloc);
+    }
+
+    append(name, addKB){
+      const de = this.dir.find(e=>e.name===name);
+      if(!de){ log(`<span class='tag'>ERRO</span> arquivo não encontrado`); return; }
+      const inode = this.inodes.find(i=>i.id===de.inode);
+      const newSize = inode.size + kb(addKB);
+      const newBlocksNeeded = Math.ceil(newSize/this.disk.bsize) - inode.blocks.length;
+      if(newBlocksNeeded>0){
+        const alloc = this.disk.firstFit(newBlocksNeeded);
+        if(!alloc){ log(`<span class='tag'>ERRO</span> sem espaço para append`); return; }
+        for(const b of alloc){
+          this.disk.setType(b,1); this.disk.blocks[b]={owner:inode}; inode.blocks.push(b);
+        }
+        log(`append: '${name}' +${addKB}KB — novos blocos ${alloc.join(',')}`);
+        this.flashBlocks(alloc);
+      } else {
+        log(`append: '${name}' +${addKB}KB — sem novos blocos (aumentou dentro do último bloco)`);
+      }
+      inode.size = newSize; de.size = newSize; inode.mtime = Date.now();
+      this.render();
+    }
+
+    delete(name){
+      const ix = this.dir.findIndex(e=>e.name===name);
+      if(ix<0){ log(`<span class='tag'>ERRO</span> arquivo não encontrado`); return; }
+      const inodeId = this.dir[ix].inode;
+      const inode = this.inodes.find(i=>i.id===inodeId);
+      // libera blocos
+      for(const b of inode.blocks){ this.disk.setType(b,0); this.disk.blocks[b]=null; }
+      // remove estruturas
+      this.inodes = this.inodes.filter(i=>i.id!==inodeId);
+      this.dir.splice(ix,1);
+      log(`delete: '${name}' — blocos liberados`);
+      this.render();
+    }
+
+    defrag(){ this.disk.compact(); this.render(); }
+
+    render(){
+      // Grid
+      gridEl.innerHTML = '';
+      for(let i=0;i<this.disk.total;i++){
+        const d = document.createElement('div');
+        d.className = 'blk '+(this.disk.bitmap[i]===1?'used':this.disk.bitmap[i]===2?'inode':this.disk.bitmap[i]===3?'dir':'');
+        const s = document.createElement('small'); s.textContent = i; d.appendChild(s);
+        gridEl.appendChild(d);
+      }
+      // i-nodes
+      inodeTbody.innerHTML='';
+      for(const inode of this.inodes){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="mono">${inode.id}</td><td>${inode.name}</td><td class="mono">${inode.size} B</td><td class="mono">${inode.blocks.join(',')}</td>`;
+        inodeTbody.appendChild(tr);
+      }
+      // diretório
+      dirTbody.innerHTML='';
+      for(const e of this.dir){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${e.name}</td><td class="mono">${e.inode}</td><td class="mono">${e.size} B</td>`;
+        dirTbody.appendChild(tr);
+      }
+      // resumo
+      const free = this.disk.bitmap.filter(x=>x===0).length;
+      const used = this.disk.bitmap.filter(x=>x===1).length;
+      const inodes = this.disk.bitmap.filter(x=>x===2).length;
+      const dir = this.disk.bitmap.filter(x=>x===3).length;
+      summaryEl.textContent = `blocos: ${this.disk.total} | livres: ${free} | dados: ${used} | i-nodes: ${inodes} | dir: ${dir} | bloco: ${this.disk.bsize}B`;
+    }
+
+    flashBlocks(indices){
+      // destaca blocos alocados por 800ms
+      const blocks = [...gridEl.children];
+      indices.forEach(i=>{
+        const el = blocks[i];
+        if(!el) return;
+        el.classList.add('sel');
+        setTimeout(()=>el.classList.remove('sel'), 800);
+      });
+    }
+  }
+
+  // Instância global
+  const fs = new FileSystem();
+  window.fs = fs; // para inspeção em aula
+
+  // Controles
+  document.getElementById('btnMkfs').onclick = ()=>{
+    const total = parseInt(document.getElementById('inpBlocks').value||'256',10);
+    const bsize = parseInt(document.getElementById('inpBSize').value||'1024',10);
+    fs.mkfs(total, bsize);
+  };
+
+  document.getElementById('btnCreate').onclick = ()=>{
+    fs.create(document.getElementById('fileName').value.trim()||`arquivo_${rand(10,99)}.dat`,
+              parseInt(document.getElementById('fileSize').value||'4',10));
+  };
+
+  document.getElementById('btnAppend').onclick = ()=>{
+    fs.append(document.getElementById('fileName').value.trim(), 4);
+  };
+
+  document.getElementById('btnDelete').onclick = ()=>{
+    fs.delete(document.getElementById('fileName').value.trim());
+  };
+
+  document.getElementById('btnDefrag').onclick = ()=> fs.defrag();
+
+  // Inicializa um disco padrão para começar a aula rapidamente
+  fs.mkfs(256, 1024);
+  fs.create('relatorio.txt', 16);
+  fs.create('dados.bin', 24);
+})();
+</script>
+</body>
+</html>
